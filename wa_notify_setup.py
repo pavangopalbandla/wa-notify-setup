@@ -17,6 +17,24 @@ PARKS = {
     'Deception Pass': '-2147483270',
     'Pearrygin Lake': '-2147483524'
 }
+
+CABINS = {
+    'Lincoln Rock': [
+        ('C5', '-2147479340'), ('C6', '-2147479342'), ('C7', '-2147479347'), ('C8', '-2147479345'),
+        ('C9', '-2147479341'), ('C10', '-2147479344'), ('C11', '-2147479346'), ('C12', '-2147479343')
+    ],
+    'Rasar': [
+        ('C1-Skagit', '-2147477909'), ('C2-Baker', '-2147477908'), ('C3-Sauk', '-2147477905'),
+        ('C4-Coho', '-2147475880'), ('C5-Chinook', '-2147475879')
+    ],
+    'Deception Pass': [
+        ('C7', '-2147475890'), ('C8', '-2147475889')
+    ],
+    'Pearrygin Lake': [
+        ('C1', '-2147478462'), ('C2', '-2147478461')
+    ]
+}
+
 BASE_URL = 'https://washington.goingtocamp.com'
 RESULTS_URL = f'{BASE_URL}/create-booking/results'
 
@@ -48,7 +66,7 @@ def generate_weekends():
     return weekends
 
 
-def build_url(park, w):
+def build_url(park, cabin_id, w):
     mid = PARKS[park]
     qs = '&'.join(f'{k}={v}' for k, v in {
         'mapId': mid,
@@ -58,6 +76,7 @@ def build_url(park, w):
         'endDate': w['departure'],
         'nights': w['nights'],
         'isReserving': 'true',
+        'resourceLocationId': cabin_id,
         'peopleCapacityCategoryCounts': '[[-32767,null,1,null]]',
         'view': 'map',
     }.items())
@@ -66,8 +85,9 @@ def build_url(park, w):
 
 async def main():
     weekends = generate_weekends()
-    total = len(weekends) * len(PARKS)
-    print(f'Will create {total} notifications ({len(weekends)} weekends x {len(PARKS)} parks)\n')
+    total_cabins = sum(len(c) for c in CABINS.values())
+    total = len(weekends) * total_cabins
+    print(f'Will create {total} notifications ({len(weekends)} weekends x {total_cabins} cabins)\n')
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=False)
@@ -103,34 +123,28 @@ async def main():
         fail = 0
         for park in PARKS:
             print(f'{park}:')
-            for w in weekends:
-                url = build_url(park, w)
-                try:
-                    await page.goto(url, timeout=30000)
-                    await page.wait_for_load_state('load', timeout=15000)
-                    await asyncio.sleep(1)  # Extra wait for dynamic content
+            for cabin_name, cabin_id in CABINS[park]:
+                print(f'  {cabin_name}:')
+                for w in weekends:
+                    url = build_url(park, cabin_id, w)
+                    try:
+                        await page.goto(url, timeout=30000)
+                        await page.wait_for_load_state('load', timeout=15000)
+                        await asyncio.sleep(1)  # Extra wait for dynamic content
 
-                    # Try multiple selectors for the notify button
-                    btn = page.locator('button:has-text("Notify")')
-                    if await btn.count() == 0:
-                        # Try alternative selectors
-                        btn = page.locator('button:has-text("notify")')
-                    if await btn.count() == 0:
-                        btn = page.locator('button[aria-label*="Notify"]')
-                    if await btn.count() == 0:
-                        btn = page.locator('button[aria-label*="notify"]')
-
-                    if await btn.count() > 0:
-                        await btn.first.click()
-                        ok += 1
-                        print(f'  + {w["display"]}')
-                    else:
+                        # Wait up to 10 seconds for the notify button to appear and click it
+                        btn = page.locator('button:has-text("Notify"), button:has-text("notify"), button[aria-label*="Notify"], button[aria-label*="notify"]')
+                        try:
+                            await btn.first.click(timeout=10000)
+                            ok += 1
+                            print(f'    + {w["display"]}')
+                        except Exception:
+                            fail += 1
+                            print(f'    x {w["display"]} (no button)')
+                    except Exception as e:
                         fail += 1
-                        print(f'  x {w["display"]} (no button)')
-                except Exception as e:
-                    fail += 1
-                    print(f'  x {w["display"]} ({e})')
-                await asyncio.sleep(0.3)
+                        print(f'    x {w["display"]} ({e})')
+                    await asyncio.sleep(0.3)
             print()
 
         await browser.close()

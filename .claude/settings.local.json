@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -L https://gist.githubusercontent.com/pavangopalbandla/368be8aca72c992da87271a5ad9c97de/raw/f45967c56a7b5629061fa8cb88411c4d16d5c92b/wa_notify_setup.py -o wa_notify_setup.py)",
+      "Bash(pip install:*)",
+      "Bash(playwright install:*)",
+      "Bash(python wa_notify_setup.py)",
+      "Bash(curl -s https://gist.githubusercontent.com/pavangopalbandla/368be8aca72c992da87271a5ad9c97de/raw/f45967c56a7b5629061fa8cb88411c4d16d5c92b/wa_notify_setup.py -o wa_notify_setup_latest.py)",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(gh repo:*)"
+    ]
+  }
+}
